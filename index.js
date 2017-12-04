@@ -1,6 +1,6 @@
 /*
-* V1.0.2
-* By LiGuang
+* V0.0.1
+* By ChenXiaojie
 * */
 
 var fs = require('fs');
