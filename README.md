@@ -1,5 +1,5 @@
 # static-resource-hash-webpack-plugin
-基于WebPack HTML/CSS/JS/Image Hash功能。实现逻辑为 当所有文件生成后，通过查找文件引用来更新Hash后的文件名。不支持动态路径引用。
+基于WebPack HTML/CSS/JS/Image Hash功能。实现逻辑为 当所有文件生成后，通过查找文件引用来更新Hash后的文件名,并生成对应的文件名json文件。不支持动态路径引用。
 
 GitHub地址：https://github.com/li-guang/static-resource-hash-webpack-plugin
 
@@ -21,6 +21,8 @@ new StaticResHashPlugin({
   log: true,
   hashLength: 8,
   destRoot: 'dist',
+  publicPath: "your.host",
+  outputFile: 'rename.json',
   hashFiles: ['/img/**/*', '/components/**/*.html', '/fonts/**/*', '/*.js', '/404.html', '/css/*.css' ],
   hostFiles: ['/**/*.js', '/**/*.html', '/css/*.css'],
   delay: 0
@@ -32,4 +34,6 @@ new StaticResHashPlugin({
 - **hashFiles** 执行Hash操作的文件，即需要对哪些文件进行Hash重命名操作
 - **hostFiles** 在哪些文件里面查找文件引用，并执行替换
 - **delay** 此操作的执行延时（毫秒），默认不使用延时，即delay=0。如果出现提示某某文件不存在时，可以使用100ms的延时解决此问题。
+- **publicPath** 公共路径，一般是静态资源的host
+- **outputFile** 输出对应文件名json的文件
 

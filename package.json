@@ -1,11 +1,11 @@
 {
-  "name": "static-resource-hash-webpack-plugin",
-  "version": "1.0.2",
-  "author": {
-    "name": "LiGuang@wicture"
-  },
-  "dependencies": {
-    "crypto": "0.0.3",
-    "glob": "^7.1.1"
-  }
+    "name": "static-resource-hash-webpack-plugin",
+    "version": "0.0.1",
+    "author": {
+        "name": "jackchanxj@163.com"
+    },
+    "dependencies": {
+        "crypto": "0.0.3",
+        "glob": "^7.1.1"
+    }
 }

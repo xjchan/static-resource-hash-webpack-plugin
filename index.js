@@ -15,27 +15,36 @@ var filePatterns = [
   /(")([^:\*\?<>'"\|\(\)@;]*\.[^:\*<>'"\|\(\)@;]+)(")/g,
 ]
 
-/*
- {
- log: false,
- hashLength: 8,
- destRoot: 'app',
- hashFiles: ['/**//*.js', '/**//*.css'],
- hostFiles: ['/**//*.js', '/**//*.html', '/**//*.css'],
- delay: 0
- }
- * */
-function StaticResHashPlugin(options){
-  if(!options) options = {};
-  if(!options.hashFiles){
+
+// {
+//   log: false,
+//   hashLength: 8,
+//   destRoot: 'app',
+//   publicPath: "your.host",
+//   outputFile: 'rename.json',
+//   hashFiles: ['/**//*.js', '/**//*.css'],
+//   hostFiles: ['/**//*.js', '/**//*.html', '/**//*.css'],
+//   delay: 0 
+// }
+
+function StaticResHashPlugin(options) {
+  if (!options) options = {};
+  if (!options.hashFiles) {
     console.error('hashFiles is needed!');
   }
-  if(!options.hostFiles){
+  if (!options.hostFiles) {
     console.error('hostFiles is needed!');
   }
-  if(options.destRoot === undefined){
+  if (options.destRoot === undefined) {
     console.error('destRoot is needed!');
   }
+  if (options.publicPath === undefined) {
+    console.error('publicPath is needed!');
+  }
+  if (options.outputFile === undefined) {
+    console.error('outputFile is needed!');
+  }
+
   options.delay = options.delay ? +options.delay : 0;
   this.options = options;
   this.options.hashLength = options.hashLength || 8;
@@ -43,11 +52,11 @@ function StaticResHashPlugin(options){
 
 var globOpts;
 
-StaticResHashPlugin.prototype.apply = function(compiler){
+StaticResHashPlugin.prototype.apply = function (compiler) {
   this.compiler = compiler;
-  compiler.plugin('done', function(){
+  compiler.plugin('done', function () {
     var that = this;
-    setTimeout(function(){
+    setTimeout(function () {
       globOpts = {
         root: path.resolve(path.join(process.cwd(), that.options.destRoot)),
         nodir: true,
@@ -60,9 +69,9 @@ StaticResHashPlugin.prototype.apply = function(compiler){
       var hostFiles = that.options.hostFiles;
       var hashLength = that.options.hashLength;
       var tmpFiles, hashFilExist;
-      for(var i = 0; i < hashFiles.length; i++){
+      for (var i = 0; i < hashFiles.length; i++) {
         tmpFiles = glob.sync(hashFiles[i], globOpts);
-        for(var j = 0; j < tmpFiles.length; j++){
+        for (var j = 0; j < tmpFiles.length; j++) {
           var obj = {
             path: path.resolve(tmpFiles[j]),
             hash: calcHashByFile(tmpFiles[j], hashLength)
@@ -73,8 +82,8 @@ StaticResHashPlugin.prototype.apply = function(compiler){
           obj.hashPath = path.join(path.dirname(obj.path), obj.hashBaseName);
 
           hashFilExist = false;
-          for(var m = 0; m < hashFileObjects.length; m++){
-            if(hashFileObjects[m].path === obj.path){
+          for (var m = 0; m < hashFileObjects.length; m++) {
+            if (hashFileObjects[m].path === obj.path) {
               hashFilExist = true;
               break;
             }
@@ -83,15 +92,26 @@ StaticResHashPlugin.prototype.apply = function(compiler){
         }
       }
 
-      for(i = 0; i < hostFiles.length; i++){
+      var logData = {}
+      if (fs.existsSync(that.options.outputFile)) {
+        var outputFile = fs.readFileSync(that.options.outputFile, 'utf8');
+        logData = JSON.parse(outputFile)
+      }
+
+      for (i = 0; i < hostFiles.length; i++) {
         tmpFiles = glob.sync(hostFiles[i], globOpts);
-        for(j = 0; j < tmpFiles.length; j++){
-          updateHashRef(tmpFiles[j]);
+        for (j = 0; j < tmpFiles.length; j++) {
+          updateHashRef(tmpFiles[j], that.options.publicPath, logData);
         }
       }
 
+      //log down the change of urls
+      fs.writeFileSync(that.options.outputFile, JSON.stringify(logData), function (err) {
+        console.log()
+      })
+
       //rename hashFiles
-      for(i = 0; i < hashFileObjects.length; i++){
+      for (i = 0; i < hashFileObjects.length; i++) {
         globOpts.log && console.log('file [' + hashFileObjects[i].path + '] execute rename --> [' + hashFileObjects[i].hashPath + ']');
         fs.renameSync(hashFileObjects[i].path, hashFileObjects[i].hashPath);
       }
@@ -100,39 +120,55 @@ StaticResHashPlugin.prototype.apply = function(compiler){
 }
 
 
-function calcHashByFile(fp, length){
+function calcHashByFile(fp, length) {
   var cont = fs.readFileSync(fp, 'utf8');
   var shaHasher = crypto.createHash('sha1');
   shaHasher.update(cont);
   return shaHasher.digest('hex').slice(0, length);
 }
 
-function updateHashRef(hostFilePath){
+function updateHashRef(hostFilePath, publicPath, logObj) {
+  if (publicPath[publicPath.length - 1] == "/") {
+    publicPath = publicPath.substr(0, publicPath.length - 1)
+  }
+
   var cont = fs.readFileSync(hostFilePath, 'utf8');
-  for(var i = 0; i < filePatterns.length; i++){
-    cont = cont.replace(filePatterns[i], function(cont, sm01, link, sm03){
+
+  for (var i = 0; i < filePatterns.length; i++) {
+    cont = cont.replace(filePatterns[i], function (cont, sm01, link, sm03) {
+      var pre = ""
+      var reg = "(" + publicPath + ")(.*)"
+      var m = link.match(reg)
+
+      if (m != null) {
+        pre = m[1]
+        link = m[2]
+      }
+
       var ext = path.extname(hostFilePath).toUpperCase();
       var dir = path.dirname(hostFilePath);
       var linkAbsPath;
       var originalLink = link;
       var queryStartIndex = link.indexOf('?');
       var queryString = '';
-      if(queryStartIndex > -1){
+      if (queryStartIndex > -1) {
         link = link.substr(0, queryStartIndex);
         queryString = originalLink.substring(queryStartIndex, originalLink.length);
       }
       //path in css. path begin with dot or virgule is relative.
-      if('.CSS' === ext && (link.startsWith('.') || (!link.startsWith('/') && !link.startsWith('\\')))){
+      if ('.CSS' === ext && (link.startsWith('.') || (!link.startsWith('/') && !link.startsWith('\\')))) {
         linkAbsPath = path.join(dir, link);
-      }else{
+      } else {
         linkAbsPath = path.join(globOpts.root, link);
       }
-      if(linkAbsPath && fs.existsSync(linkAbsPath)){
+
+      if (linkAbsPath && fs.existsSync(linkAbsPath)) {
         //find hashvalue from hashFiles
-        for(var j = 0; j < hashFileObjects.length; j++){
-          if(hashFileObjects[j].path === linkAbsPath){
+        for (var j = 0; j < hashFileObjects.length; j++) {
+          if (hashFileObjects[j].path === linkAbsPath) {
             globOpts.log && console.log('file [' + hostFilePath + '] execute replace [' + link + '] --> [' + hashFileObjects[j].hashBaseName + ']')
-            return sm01 + path.join(path.dirname(link), hashFileObjects[j].hashBaseName).replace(/\\/g, '/') + queryString + sm03;
+            logObj[pre + link] = pre + path.join(path.dirname(link), hashFileObjects[j].hashBaseName).replace(/\\/g, '/')
+            return sm01 + pre + path.join(path.dirname(link), hashFileObjects[j].hashBaseName).replace(/\\/g, '/') + queryString + sm03;
           }
         }
       }
